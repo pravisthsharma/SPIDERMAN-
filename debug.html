@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spider-Man File Debugger</title>
+    <style>
+        body { 
+            margin: 20px; 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a; 
+            color: white; 
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-area { 
+            background: #2a2a2a; 
+            padding: 20px; 
+            border-radius: 10px; 
+            margin: 20px 0; 
+        }
+        button { 
+            padding: 10px 20px; 
+            background: #e62429; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 10px 5px; 
+        }
+        button:hover { background: #ff5555; }
+        .result { 
+            padding: 10px; 
+            margin: 5px 0; 
+            border-radius: 5px; 
+            font-family: monospace; 
+        }
+        .success { background: #2e7d32; }
+        .error { background: #c62828; }
+        .warning { background: #f9a825; color: #000; }
+        .loading { background: #1565c0; }
+        .status { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Spider-Man Assets Debugger</h1>
+        
+        <div class="test-area">
+            <h2>1. Base URL Test</h2>
+            <p>Testing: <code id="base-url">https://pravisthsharma.github.io/SPIDERMAN-/</code></p>
+            <button onclick="testBaseURL()">Test Base URL</button>
+            <div id="base-result"></div>
+        </div>
+        
+        <div class="test-area">
+            <h2>2. Directory Structure Test</h2>
+            <p>Expected structure:</p>
+            <pre>
+├── index.html (this file)
+├── modals/
+│   ├── spiderman.glb
+│   ├── spiderman_idle.glb
+│   └── ...
+└── city/
+    └── city_pack_8.glb
+            </pre>
+            <button onclick="testAllFiles()">Test All Files</button>
+            <div id="files-result"></div>
+        </div>
+        
+        <div class="test-area">
+            <h2>3. Quick Fix Options</h2>
+            <div id="fix-options"></div>
+        </div>
+        
+        <div class="test-area">
+            <h2>4. Minimal Working Game (If Files Exist)</h2>
+            <div id="game-container"></div>
+            <button onclick="launchSimpleGame()">Try Minimal Game</button>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'https://pravisthsharma.github.io/SPIDERMAN-/';
+        const FILES = [
+            // Root
+            'index.html',
+            
+            // City
+            'city/city_pack_8.glb',
+            
+            // Character models
+            'modals/spiderman.glb',
+            'modals/spiderman_idle.glb',
+            'modals/spiderman_walk.glb',
+            'modals/spiderman_run.glb',
+            'modals/spiderman_jump.glb',
+            'modals/spiderman_flip.glb',
+            'modals/spiderman_vault.glb',
+            'modals/spiderman_swing.glb'
+        ];
+
+        function showResult(elementId, message, type) {
+            const div = document.getElementById(elementId);
+            div.innerHTML = `<div class="result ${type}">
+                <span class="status">${type.toUpperCase()}:</span> ${message}
+            </div>`;
+        }
+
+        async function testFile(url) {
+            try {
+                console.log(`Testing: ${url}`);
+                const response = await fetch(url, { method: 'HEAD' });
+                
+                if (response.ok) {
+                    console.log(`✓ ${url} exists`);
+                    return { success: true, url };
+                } else {
+                    // Try GET if HEAD fails
+                    const getResponse = await fetch(url);
+                    if (getResponse.ok) {
+                        console.log(`✓ ${url} exists (GET)`);
+                        return { success: true, url };
+                    }
+                    console.log(`✗ ${url} - Status: ${getResponse.status}`);
+                    return { 
+                        success: false, 
+                        url, 
+                        error: `HTTP ${getResponse.status}` 
+                    };
+                }
+            } catch (error) {
+                console.log(`✗ ${url} - Error: ${error.message}`);
+                return { 
+                    success: false, 
+                    url, 
+                    error: error.message 
+                };
+            }
+        }
+
+        async function testBaseURL() {
+            showResult('base-result', 'Testing base URL...', 'loading');
+            
+            const result = await testFile(BASE_URL);
+            
+            if (result.success) {
+                showResult('base-result', 
+                    'Base URL is accessible. GitHub Pages is working.', 
+                    'success');
+            } else {
+                showResult('base-result', 
+                    `Cannot access base URL. Error: ${result.error}<br>
+                    Possible issues:<br>
+                    1. GitHub Pages not enabled<br>
+                    2. Repository is private<br>
+                    3. Wrong repository name<br>
+                    4. Allow time for GitHub Pages to deploy (5-10 mins)`, 
+                    'error');
+            }
+        }
+
+        async function testAllFiles() {
+            const resultsDiv = document.getElementById('files-result');
+            resultsDiv.innerHTML = '<div class="result loading">Testing files...</div>';
+            
+            let successCount = 0;
+            let failCount = 0;
+            let resultsHTML = '';
+            
+            for (const file of FILES) {
+                const fullUrl = BASE_URL + file;
+                const result = await testFile(fullUrl);
+                
+                if (result.success) {
+                    resultsHTML += `<div class="result success">✓ ${file}</div>`;
+                    successCount++;
+                } else {
+                    resultsHTML += `<div class="result error">✗ ${file} - ${result.error}</div>`;
+                    failCount++;
+                }
+            }
+            
+            resultsHTML += `<div class="result ${failCount > 0 ? 'warning' : 'success'}">
+                Summary: ${successCount} files found, ${failCount} files missing
+            </div>`;
+            
+            resultsDiv.innerHTML = resultsHTML;
+            
+            // Show fix options
+            showFixOptions(successCount, failCount);
+        }
+
+        function showFixOptions(successCount, failCount) {
+            const fixDiv = document.getElementById('fix-options');
+            
+            let html = '';
+            
+            if (successCount === 0) {
+                html = `
+                    <div class="result error">
+                        <strong>CRITICAL ISSUE:</strong> No files found!<br><br>
+                        <strong>Possible solutions:</strong><br>
+                        1. Check if GitHub Pages is enabled:<br>
+                           &nbsp;&nbsp;- Go to repository Settings → Pages<br>
+                           &nbsp;&nbsp;- Source should be set to "main branch" or "master branch"<br><br>
+                        2. Check repository name:<br>
+                           &nbsp;&nbsp;URL should be: https://pravisthsharma.github.io/SPIDERMAN-/<br>
+                           &nbsp;&nbsp;Repository name MUST be "SPIDERMAN-" (with dash)<br><br>
+                        3. Files should be in root of repository, not in a subfolder<br><br>
+                        4. Wait 5-10 minutes after enabling GitHub Pages
+                    </div>
+                `;
+            } else if (failCount > 0) {
+                html = `
+                    <div class="result warning">
+                        <strong>PARTIAL SUCCESS:</strong> Some files are missing<br><br>
+                        <strong>Quick fixes:</strong><br>
+                        <button onclick="useMinimalAssets()">Use Only Found Assets</button>
+                        <button onclick="createPlaceholderAssets()">Create Placeholder Assets</button>
+                        <button onclick="showFolderStructure()">Show Expected Folder Structure</button>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div class="result success">
+                        <strong>✓ ALL FILES FOUND!</strong><br>
+                        Your game should work. Try launching the minimal game below.
+                    </div>
+                `;
+            }
+            
+            fixDiv.innerHTML = html;
+        }
+
+        function useMinimalAssets() {
+            alert("Will create a game using only the assets that were found.");
+            // This would be implemented to create a minimal game
+        }
+
+        function createPlaceholderAssets() {
+            alert("Will create simple 3D boxes as placeholders for missing assets.");
+            // This would be implemented to create placeholder geometry
+        }
+
+        function showFolderStructure() {
+            alert(`Expected folder structure:\n\n` +
+                  `SPIDERMAN-/\n` +
+                  `├── index.html\n` +
+                  `├── modals/\n` +
+                  `│   ├── spiderman.glb\n` +
+                  `│   ├── spiderman_idle.glb\n` +
+                  `│   └── ...\n` +
+                  `└── city/\n` +
+                  `    └── city_pack_8.glb\n\n` +
+                  `Case matters: "modals" not "models"`);
+        }
+
+        function launchSimpleGame() {
+            const gameDiv = document.getElementById('game-container');
+            gameDiv.innerHTML = `
+                <div class="result loading">
+                    Creating minimal game...<br>
+                    <iframe 
+                        src="simple-game.html" 
+                        width="800" 
+                        height="600" 
+                        style="border: 2px solid #333; margin-top: 10px;">
+                    </iframe>
+                </div>
+            `;
+            
+            // Create a separate simple game HTML
+            createSimpleGameFile();
+        }
+
+        function createSimpleGameFile() {
+            // Create a minimal game HTML file
+            const simpleGameHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #info { 
+            position: absolute; top: 10px; left: 10px; 
+            color: white; font-family: Arial; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Loading...</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"><\/script>
+    <script>
+        // Minimal Three.js setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const light = new THREE.DirectionalLight(0xffffff, 0.8);
+        light.position.set(10, 20, 5);
+        scene.add(light);
+        
+        // Ground
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshStandardMaterial({ color: 0x444444 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+        
+        // Create a simple character (cube) as fallback
+        const geometry = new THREE.BoxGeometry(1, 2, 1);
+        const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const player = new THREE.Mesh(geometry, material);
+        player.position.set(0, 1, 0);
+        scene.add(player);
+        
+        camera.position.set(0, 5, 10);
+        
+        // Try to load actual models
+        const loader = new THREE.GLTFLoader();
+        
+        function tryLoadModel(url, name) {
+            loader.load(url, 
+                function(gltf) {
+                    console.log('Loaded:', name);
+                    if (name === 'city') {
+                        scene.add(gltf.scene);
+                    } else if (name === 'spiderman') {
+                        // Replace cube with actual model
+                        scene.remove(player);
+                        const model = gltf.scene;
+                        model.position.set(0, 1, 0);
+                        model.scale.set(0.5, 0.5, 0.5);
+                        scene.add(model);
+                    }
+                },
+                function(xhr) {
+                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+                },
+                function(error) {
+                    console.log('Error loading', name, error);
+                    document.getElementById('info').innerHTML = 
+                        'Using placeholder models. Some assets not found.<br>' +
+                        'WASD to move, Space to jump';
+                }
+            );
+        }
+        
+        // Try loading assets
+        try {
+            // Try city
+            tryLoadModel('${BASE_URL}city/city_pack_8.glb', 'city');
+        } catch(e) {}
+        
+        try {
+            // Try character
+            tryLoadModel('${BASE_URL}modals/spiderman.glb', 'spiderman');
+        } catch(e) {}
+        
+        // Controls
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.code === 'Space') {
+                player.position.y += 2;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        // Game loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Movement
+            if (keys['w']) player.position.z -= 0.1;
+            if (keys['s']) player.position.z += 0.1;
+            if (keys['a']) player.position.x -= 0.1;
+            if (keys['d']) player.position.x += 0.1;
+            
+            // Simple gravity
+            if (player.position.y > 1) {
+                player.position.y -= 0.05;
+            }
+            
+            // Camera follow
+            camera.position.x = player.position.x;
+            camera.position.z = player.position.z + 10;
+            camera.lookAt(player.position);
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+    <\/script>
+</body>
+</html>`;
+            
+            // Create a blob and link to download
+            const blob = new Blob([simpleGameHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            
+            // Update the iframe to show the simple game
+            const iframe = document.querySelector('#game-container iframe');
+            if (iframe) {
+                iframe.src = url;
+            }
+        }
+
+        // Auto-run tests
+        window.onload = function() {
+            testBaseURL();
+            setTimeout(testAllFiles, 1000);
+        };
+    </script>
+</body>
+</html>
